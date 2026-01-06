@@ -109,17 +109,22 @@ impl DatadogClient {
         })
     }
 
-    pub fn search_logs(&self, query: &LogsQuery) -> Result<LogsSearchResponse, String> {
+    /// Search logs with streaming output. Calls `on_batch` with each page of results as they arrive.
+    /// Returns the total number of logs retrieved.
+    pub fn search_logs<F>(&self, query: &LogsQuery, mut on_batch: F) -> Result<usize, String>
+    where
+        F: FnMut(&[LogEntry]),
+    {
         const MAX_PAGE_SIZE: u32 = 5000;
 
-        let mut accumulated_logs: Vec<LogEntry> = Vec::new();
+        let mut total_count: usize = 0;
         let mut cursor: Option<String> = None;
 
         loop {
             // Calculate page size: min(remaining, 5000)
             let page_size = match query.limit {
                 Some(limit) => {
-                    let remaining = limit.saturating_sub(accumulated_logs.len() as u32);
+                    let remaining = limit.saturating_sub(total_count as u32);
                     remaining.min(MAX_PAGE_SIZE)
                 }
                 None => MAX_PAGE_SIZE,
@@ -163,9 +168,10 @@ impl DatadogClient {
                 .json()
                 .map_err(|e| format!("Failed to parse response: {}", e))?;
 
-            // Append logs from this page
+            // Stream logs from this page immediately
             if let Some(logs) = internal_response.data {
-                accumulated_logs.extend(logs);
+                on_batch(&logs);
+                total_count += logs.len();
             }
 
             // Check for next page cursor
@@ -181,18 +187,13 @@ impl DatadogClient {
 
             // Check if we've collected enough
             if let Some(limit) = query.limit
-                && accumulated_logs.len() >= limit as usize {
-                    break;
-                }
+                && total_count >= limit as usize
+            {
+                break;
+            }
         }
 
-        Ok(LogsSearchResponse {
-            data: if accumulated_logs.is_empty() {
-                None
-            } else {
-                Some(accumulated_logs)
-            },
-        })
+        Ok(total_count)
     }
 }
 

@@ -83,17 +83,22 @@ pub struct EventDetails {
 }
 
 impl DatadogClient {
-    pub fn search_events(&self, query: &EventsQuery) -> Result<EventsSearchResponse, String> {
+    /// Search events with streaming output. Calls `on_batch` with each page of results as they arrive.
+    /// Returns the total number of events retrieved.
+    pub fn search_events<F>(&self, query: &EventsQuery, mut on_batch: F) -> Result<usize, String>
+    where
+        F: FnMut(&[EventEntry]),
+    {
         const MAX_PAGE_SIZE: u32 = 5000;
 
-        let mut accumulated_events: Vec<EventEntry> = Vec::new();
+        let mut total_count: usize = 0;
         let mut cursor: Option<String> = None;
 
         loop {
             // Calculate page size: min(remaining, 5000)
             let page_size = match query.limit {
                 Some(limit) => {
-                    let remaining = limit.saturating_sub(accumulated_events.len() as u32);
+                    let remaining = limit.saturating_sub(total_count as u32);
                     remaining.min(MAX_PAGE_SIZE)
                 }
                 None => MAX_PAGE_SIZE,
@@ -136,9 +141,10 @@ impl DatadogClient {
                 .json()
                 .map_err(|e| format!("Failed to parse response: {}", e))?;
 
-            // Append events from this page
+            // Stream events from this page immediately
             if let Some(events) = internal_response.data {
-                accumulated_events.extend(events);
+                on_batch(&events);
+                total_count += events.len();
             }
 
             // Check for next page cursor
@@ -154,18 +160,13 @@ impl DatadogClient {
 
             // Check if we've collected enough
             if let Some(limit) = query.limit
-                && accumulated_events.len() >= limit as usize {
-                    break;
-                }
+                && total_count >= limit as usize
+            {
+                break;
+            }
         }
 
-        Ok(EventsSearchResponse {
-            data: if accumulated_events.is_empty() {
-                None
-            } else {
-                Some(accumulated_events)
-            },
-        })
+        Ok(total_count)
     }
 }
 

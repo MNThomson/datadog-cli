@@ -99,17 +99,15 @@ fn print_event_entry(entry: &EventEntry, output: OutputFormat) {
 fn run_logs_query(query: &LogsQuery, output: OutputFormat) {
     let client = get_client();
 
-    match client.search_logs(query) {
-        Ok(response) => match response.data {
-            Some(logs) if !logs.is_empty() => {
-                for entry in logs {
-                    print_log_entry(&entry, output);
-                }
-            }
-            _ => {
-                println!("No logs found for query: {}", query.query);
-            }
-        },
+    match client.search_logs(query, |batch| {
+        for entry in batch {
+            print_log_entry(entry, output);
+        }
+    }) {
+        Ok(0) => {
+            eprintln!("No logs found for query: {}", query.query);
+        }
+        Ok(_) => {}
         Err(e) => {
             eprintln!("Error: {}", e);
             std::process::exit(1);
@@ -120,17 +118,15 @@ fn run_logs_query(query: &LogsQuery, output: OutputFormat) {
 fn run_events_query(query: &EventsQuery, output: OutputFormat) {
     let client = get_client();
 
-    match client.search_events(query) {
-        Ok(response) => match response.data {
-            Some(events) if !events.is_empty() => {
-                for entry in events {
-                    print_event_entry(&entry, output);
-                }
-            }
-            _ => {
-                println!("No events found for query: {}", query.query);
-            }
-        },
+    match client.search_events(query, |batch| {
+        for entry in batch {
+            print_event_entry(entry, output);
+        }
+    }) {
+        Ok(0) => {
+            eprintln!("No events found for query: {}", query.query);
+        }
+        Ok(_) => {}
         Err(e) => {
             eprintln!("Error: {}", e);
             std::process::exit(1);
