@@ -3,6 +3,8 @@
 [<img alt="github" src="https://img.shields.io/badge/github-MNThomson/datadog--cli-bc3f48?style=for-the-badge&labelColor=555555&logo=github" height="20">](https://github.com/MNThomson/datadog-cli)
 [<img alt="crates.io" src="https://img.shields.io/crates/v/datadog-cli.svg?style=for-the-badge&color=fc8d62&logo=rust" height="20">](https://crates.io/crates/datadog-cli)
 [<img alt="crates.io" src="https://img.shields.io/crates/d/datadog-cli.svg?style=for-the-badge&color=fc8d62&logo=rust" height="20">](https://crates.io/crates/datadog-cli)
+[<img alt="build status" src="https://img.shields.io/github/actions/workflow/status/MNThomson/datadog-cli/ci.yml?branch=master&style=for-the-badge&logo=githubactions&logoColor=white" height="20">](https://github.com/MNThomson/datadog-cli/actions?query=branch%3Amaster)
+
 
 CLI tool for querying Datadog logs (since the UI sucks at loading them).
 
