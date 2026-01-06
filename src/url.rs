@@ -3,6 +3,7 @@ use url::Url;
 
 use crate::logs::LogsQuery;
 
+#[derive(Debug)]
 pub enum DatadogResource {
     Logs(LogsQuery),
 }
@@ -57,5 +58,69 @@ pub fn parse_datadog_url(url_str: &str) -> Result<DatadogResource, String> {
             "Unsupported Datadog resource: {}. Currently only /logs is supported.",
             path
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+
+    #[rstest]
+    #[case("https://app.datadoghq.com/logs?query=service%3Amyapp", "service:myapp", "now-15m", "now")]
+    #[case("https://app.datadoghq.com/logs", "*", "now-15m", "now")]
+    #[case("https://app.datadoghq.com/logs?query=env%3Aprod", "env:prod", "now-15m", "now")]
+    fn test_parse_valid_logs_url(
+        #[case] url: &str,
+        #[case] expected_query: &str,
+        #[case] expected_from: &str,
+        #[case] expected_to: &str,
+    ) {
+        let result = parse_datadog_url(url).expect("should parse successfully");
+
+        match result {
+            DatadogResource::Logs(query) => {
+                assert_eq!(query.query, expected_query);
+                assert_eq!(query.from, expected_from);
+                assert_eq!(query.to, expected_to);
+                assert_eq!(query.limit, 100);
+            }
+        }
+    }
+
+    #[rstest]
+    #[case(
+        "https://app.datadoghq.com/logs?query=*&from_ts=1704067200000&to_ts=1704153600000",
+        "*",
+        "2024-01-01",
+        "2024-01-02"
+    )]
+    fn test_parse_logs_url_with_timestamps(
+        #[case] url: &str,
+        #[case] expected_query: &str,
+        #[case] from_contains: &str,
+        #[case] to_contains: &str,
+    ) {
+        let result = parse_datadog_url(url).expect("should parse successfully");
+
+        match result {
+            DatadogResource::Logs(query) => {
+                assert_eq!(query.query, expected_query);
+                assert!(query.from.contains(from_contains));
+                assert!(query.to.contains(to_contains));
+            }
+        }
+    }
+
+    #[rstest]
+    #[case("https://example.com/logs", "must be a Datadog URL")]
+    #[case("https://google.com/logs", "must be a Datadog URL")]
+    #[case("https://app.datadoghq.com/apm/traces", "Unsupported Datadog resource")]
+    #[case("https://app.datadoghq.com/metrics", "Unsupported Datadog resource")]
+    fn test_reject_invalid_urls(#[case] url: &str, #[case] error_contains: &str) {
+        let result = parse_datadog_url(url);
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains(error_contains));
     }
 }
