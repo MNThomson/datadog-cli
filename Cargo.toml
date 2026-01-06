@@ -1,0 +1,22 @@
+[package]
+name = "datadog-cli"
+version = "0.1.0"
+edition = "2024"
+description = "A CLI tool for querying Datadog"
+authors = ["MNThomson"]
+license = "AGPL-3.0"
+repository = "https://github.com/maxthomson/datadog-cli"
+keywords = ["datadog", "cli", "monitoring", "metrics", "observability"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "datadog"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+reqwest = { version = "0.13", features = ["blocking", "json"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = "0.4"
+colored = "3.0"
