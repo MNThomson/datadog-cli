@@ -44,21 +44,29 @@ struct PageOptions {
 }
 
 // Response structures
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct LogsSearchResponse {
     pub data: Option<Vec<LogEntry>>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct LogEntry {
+    pub id: Option<String>,
+    #[serde(rename = "type")]
+    pub entry_type: Option<String>,
     pub attributes: LogAttributes,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct LogAttributes {
     pub timestamp: Option<String>,
     pub status: Option<String>,
     pub message: Option<String>,
+    pub host: Option<String>,
+    pub service: Option<String>,
+    pub tags: Option<Vec<String>>,
+    #[serde(flatten)]
+    pub attributes: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 pub struct DatadogClient {

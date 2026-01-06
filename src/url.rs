@@ -70,9 +70,19 @@ mod tests {
     use rstest::rstest;
 
     #[rstest]
-    #[case("https://app.datadoghq.com/logs?query=service%3Amyapp", "service:myapp", "now-15m", "now")]
+    #[case(
+        "https://app.datadoghq.com/logs?query=service%3Amyapp",
+        "service:myapp",
+        "now-15m",
+        "now"
+    )]
     #[case("https://app.datadoghq.com/logs", "*", "now-15m", "now")]
-    #[case("https://app.datadoghq.com/logs?query=env%3Aprod", "env:prod", "now-15m", "now")]
+    #[case(
+        "https://app.datadoghq.com/logs?query=env%3Aprod",
+        "env:prod",
+        "now-15m",
+        "now"
+    )]
     fn test_parse_valid_logs_url(
         #[case] url: &str,
         #[case] expected_query: &str,
@@ -118,9 +128,19 @@ mod tests {
     }
 
     #[rstest]
-    #[case("https://app.datadoghq.com/event/explorer?query=test-runner", "test-runner", "now-15m", "now")]
+    #[case(
+        "https://app.datadoghq.com/event/explorer?query=test-runner",
+        "test-runner",
+        "now-15m",
+        "now"
+    )]
     #[case("https://app.datadoghq.com/event/explorer", "*", "now-15m", "now")]
-    #[case("https://app.datadoghq.com/event/explorer?query=source%3Agithub", "source:github", "now-15m", "now")]
+    #[case(
+        "https://app.datadoghq.com/event/explorer?query=source%3Agithub",
+        "source:github",
+        "now-15m",
+        "now"
+    )]
     fn test_parse_valid_events_url(
         #[case] url: &str,
         #[case] expected_query: &str,

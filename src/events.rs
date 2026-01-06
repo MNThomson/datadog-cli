@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use colored::Colorize;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::logs::DatadogClient;
 
@@ -25,34 +25,43 @@ impl EventsQuery {
 }
 
 // Response structures for Events API v2
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct EventsSearchResponse {
     pub data: Option<Vec<EventEntry>>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct EventEntry {
+    pub id: Option<String>,
+    #[serde(rename = "type")]
+    pub entry_type: Option<String>,
     pub attributes: EventAttributes,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct EventAttributes {
     pub timestamp: Option<String>,
     pub attributes: Option<EventInnerAttributes>,
     pub tags: Option<Vec<String>>,
     pub message: Option<String>,
+    #[serde(flatten)]
+    pub other: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct EventInnerAttributes {
     pub title: Option<String>,
     pub status: Option<String>,
     pub evt: Option<EventDetails>,
+    #[serde(flatten)]
+    pub other: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct EventDetails {
     pub name: Option<String>,
+    #[serde(flatten)]
+    pub other: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 impl DatadogClient {
@@ -151,4 +160,3 @@ pub fn format_event_entry(entry: &EventEntry) -> String {
         )
     }
 }
-
