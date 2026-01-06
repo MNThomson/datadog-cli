@@ -1,5 +1,8 @@
 use clap::{Parser, Subcommand};
-use datadog::{DatadogClient, DatadogResource, LogsQuery, format_log_entry, parse_datadog_url};
+use datadog::{
+    DatadogClient, DatadogResource, EventsQuery, LogsQuery, format_event_entry, format_log_entry,
+    parse_datadog_url,
+};
 
 /// Datadog CLI - Query logs from your terminal
 #[derive(Parser)]
@@ -32,16 +35,37 @@ enum Commands {
         #[arg(long, default_value = "100")]
         limit: u32,
     },
+    /// Search Datadog events
+    Events {
+        /// The search query (Datadog query syntax)
+        query: String,
+
+        /// Start time
+        #[arg(long, default_value = "now-15m")]
+        from: String,
+
+        /// End time
+        #[arg(long, default_value = "now")]
+        to: String,
+
+        /// Maximum number of events to retrieve (max: 1000)
+        #[arg(long, default_value = "100")]
+        limit: u32,
+    },
 }
 
-fn run_logs_query(query: &LogsQuery) {
-    let client = match DatadogClient::new() {
+fn get_client() -> DatadogClient {
+    match DatadogClient::new() {
         Ok(c) => c,
         Err(e) => {
             eprintln!("Error: {}", e);
             std::process::exit(1);
         }
-    };
+    }
+}
+
+fn run_logs_query(query: &LogsQuery) {
+    let client = get_client();
 
     match client.search_logs(query) {
         Ok(response) => match response.data {
@@ -61,6 +85,27 @@ fn run_logs_query(query: &LogsQuery) {
     }
 }
 
+fn run_events_query(query: &EventsQuery) {
+    let client = get_client();
+
+    match client.search_events(query) {
+        Ok(response) => match response.data {
+            Some(events) if !events.is_empty() => {
+                for entry in events {
+                    println!("{}", format_event_entry(&entry));
+                }
+            }
+            _ => {
+                println!("No events found for query: {}", query.query);
+            }
+        },
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            std::process::exit(1);
+        }
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -69,6 +114,9 @@ fn main() {
         match parse_datadog_url(&url_str) {
             Ok(DatadogResource::Logs(query)) => {
                 run_logs_query(&query);
+            }
+            Ok(DatadogResource::Events(query)) => {
+                run_events_query(&query);
             }
             Err(e) => {
                 eprintln!("Error parsing URL: {}", e);
@@ -87,6 +135,14 @@ fn main() {
             limit,
         }) => {
             run_logs_query(&LogsQuery::new(query, from, to, limit));
+        }
+        Some(Commands::Events {
+            query,
+            from,
+            to,
+            limit,
+        }) => {
+            run_events_query(&EventsQuery::new(query, from, to, limit));
         }
         None => {
             eprintln!("Error: No URL or command provided. Use --help for usage information.");

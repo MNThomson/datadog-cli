@@ -62,9 +62,9 @@ pub struct LogAttributes {
 }
 
 pub struct DatadogClient {
-    api_key: String,
-    app_key: String,
-    client: reqwest::blocking::Client,
+    pub(crate) api_key: String,
+    pub(crate) app_key: String,
+    pub(crate) client: reqwest::blocking::Client,
 }
 
 impl DatadogClient {
