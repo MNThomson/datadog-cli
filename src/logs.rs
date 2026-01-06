@@ -9,11 +9,12 @@ pub struct LogsQuery {
     pub query: String,
     pub from: String,
     pub to: String,
-    pub limit: u32,
+    /// Maximum number of logs to retrieve. None = fetch all.
+    pub limit: Option<u32>,
 }
 
 impl LogsQuery {
-    pub fn new(query: String, from: String, to: String, limit: u32) -> Self {
+    pub fn new(query: String, from: String, to: String, limit: Option<u32>) -> Self {
         Self {
             query,
             from,
@@ -41,9 +42,28 @@ struct LogsFilter {
 #[derive(Serialize)]
 struct PageOptions {
     limit: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cursor: Option<String>,
 }
 
-// Response structures
+// Internal response structure (includes pagination metadata)
+#[derive(Deserialize)]
+struct LogsSearchResponseInternal {
+    data: Option<Vec<LogEntry>>,
+    meta: Option<Meta>,
+}
+
+#[derive(Deserialize)]
+struct Meta {
+    page: Option<PageMeta>,
+}
+
+#[derive(Deserialize)]
+struct PageMeta {
+    after: Option<String>,
+}
+
+// Public response structure
 #[derive(Deserialize, Serialize)]
 pub struct LogsSearchResponse {
     pub data: Option<Vec<LogEntry>>,
@@ -90,35 +110,89 @@ impl DatadogClient {
     }
 
     pub fn search_logs(&self, query: &LogsQuery) -> Result<LogsSearchResponse, String> {
-        let request_body = LogsSearchRequest {
-            filter: LogsFilter {
-                query: query.query.clone(),
-                from: query.from.clone(),
-                to: query.to.clone(),
-            },
-            page: PageOptions { limit: query.limit },
-            sort: "timestamp".to_string(),
-        };
+        const MAX_PAGE_SIZE: u32 = 5000;
 
-        let response = self
-            .client
-            .post("https://api.datadoghq.com/api/v2/logs/events/search")
-            .header("DD-API-KEY", &self.api_key)
-            .header("DD-APPLICATION-KEY", &self.app_key)
-            .header("Content-Type", "application/json")
-            .json(&request_body)
-            .send()
-            .map_err(|e| format!("Request failed: {}", e))?;
+        let mut accumulated_logs: Vec<LogEntry> = Vec::new();
+        let mut cursor: Option<String> = None;
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().unwrap_or_default();
-            return Err(format!("API error ({}): {}", status, body));
+        loop {
+            // Calculate page size: min(remaining, 5000)
+            let page_size = match query.limit {
+                Some(limit) => {
+                    let remaining = limit.saturating_sub(accumulated_logs.len() as u32);
+                    remaining.min(MAX_PAGE_SIZE)
+                }
+                None => MAX_PAGE_SIZE,
+            };
+
+            // If we've already collected enough, stop
+            if page_size == 0 {
+                break;
+            }
+
+            let request_body = LogsSearchRequest {
+                filter: LogsFilter {
+                    query: query.query.clone(),
+                    from: query.from.clone(),
+                    to: query.to.clone(),
+                },
+                page: PageOptions {
+                    limit: page_size,
+                    cursor: cursor.clone(),
+                },
+                sort: "timestamp".to_string(),
+            };
+
+            let response = self
+                .client
+                .post("https://api.datadoghq.com/api/v2/logs/events/search")
+                .header("DD-API-KEY", &self.api_key)
+                .header("DD-APPLICATION-KEY", &self.app_key)
+                .header("Content-Type", "application/json")
+                .json(&request_body)
+                .send()
+                .map_err(|e| format!("Request failed: {}", e))?;
+
+            if !response.status().is_success() {
+                let status = response.status();
+                let body = response.text().unwrap_or_default();
+                return Err(format!("API error ({}): {}", status, body));
+            }
+
+            let internal_response: LogsSearchResponseInternal = response
+                .json()
+                .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+            // Append logs from this page
+            if let Some(logs) = internal_response.data {
+                accumulated_logs.extend(logs);
+            }
+
+            // Check for next page cursor
+            let next_cursor = internal_response
+                .meta
+                .and_then(|m| m.page)
+                .and_then(|p| p.after);
+
+            match next_cursor {
+                Some(c) => cursor = Some(c),
+                None => break, // No more pages
+            }
+
+            // Check if we've collected enough
+            if let Some(limit) = query.limit
+                && accumulated_logs.len() >= limit as usize {
+                    break;
+                }
         }
 
-        response
-            .json::<LogsSearchResponse>()
-            .map_err(|e| format!("Failed to parse response: {}", e))
+        Ok(LogsSearchResponse {
+            data: if accumulated_logs.is_empty() {
+                None
+            } else {
+                Some(accumulated_logs)
+            },
+        })
     }
 }
 

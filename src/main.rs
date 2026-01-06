@@ -41,7 +41,7 @@ enum Commands {
         #[arg(long, default_value = "now")]
         to: String,
 
-        /// Maximum number of logs to retrieve (max: 5000)
+        /// Maximum number of logs to retrieve (0 = unlimited)
         #[arg(long, default_value = "100")]
         limit: u32,
 
@@ -62,7 +62,7 @@ enum Commands {
         #[arg(long, default_value = "now")]
         to: String,
 
-        /// Maximum number of events to retrieve (max: 1000)
+        /// Maximum number of events to retrieve (0 = unlimited)
         #[arg(long, default_value = "100")]
         limit: u32,
 
@@ -167,6 +167,8 @@ fn main() {
             limit,
             output,
         }) => {
+            // Convert limit: 0 means unlimited (None), otherwise Some(limit)
+            let limit = if limit == 0 { None } else { Some(limit) };
             run_logs_query(&LogsQuery::new(query, from, to, limit), output);
         }
         Some(Commands::Events {
@@ -176,6 +178,8 @@ fn main() {
             limit,
             output,
         }) => {
+            // Convert limit: 0 means unlimited (None), otherwise Some(limit)
+            let limit = if limit == 0 { None } else { Some(limit) };
             run_events_query(&EventsQuery::new(query, from, to, limit), output);
         }
         None => {

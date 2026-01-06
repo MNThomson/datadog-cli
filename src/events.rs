@@ -10,11 +10,12 @@ pub struct EventsQuery {
     pub query: String,
     pub from: String,
     pub to: String,
-    pub limit: u32,
+    /// Maximum number of events to retrieve. None = fetch all.
+    pub limit: Option<u32>,
 }
 
 impl EventsQuery {
-    pub fn new(query: String, from: String, to: String, limit: u32) -> Self {
+    pub fn new(query: String, from: String, to: String, limit: Option<u32>) -> Self {
         Self {
             query,
             from,
@@ -24,7 +25,24 @@ impl EventsQuery {
     }
 }
 
-// Response structures for Events API v2
+// Internal response structure (includes pagination metadata)
+#[derive(Deserialize, Debug)]
+struct EventsSearchResponseInternal {
+    data: Option<Vec<EventEntry>>,
+    meta: Option<EventsMeta>,
+}
+
+#[derive(Deserialize, Debug)]
+struct EventsMeta {
+    page: Option<EventsPageMeta>,
+}
+
+#[derive(Deserialize, Debug)]
+struct EventsPageMeta {
+    after: Option<String>,
+}
+
+// Public response structure
 #[derive(Deserialize, Serialize, Debug)]
 pub struct EventsSearchResponse {
     pub data: Option<Vec<EventEntry>>,
@@ -66,32 +84,88 @@ pub struct EventDetails {
 
 impl DatadogClient {
     pub fn search_events(&self, query: &EventsQuery) -> Result<EventsSearchResponse, String> {
-        let url = format!(
-            "https://api.datadoghq.com/api/v2/events?filter[query]={}&filter[from]={}&filter[to]={}&page[limit]={}",
-            urlencoding::encode(&query.query),
-            urlencoding::encode(&query.from),
-            urlencoding::encode(&query.to),
-            query.limit
-        );
+        const MAX_PAGE_SIZE: u32 = 5000;
 
-        let response = self
-            .client
-            .get(&url)
-            .header("DD-API-KEY", &self.api_key)
-            .header("DD-APPLICATION-KEY", &self.app_key)
-            .header("Content-Type", "application/json")
-            .send()
-            .map_err(|e| format!("Request failed: {}", e))?;
+        let mut accumulated_events: Vec<EventEntry> = Vec::new();
+        let mut cursor: Option<String> = None;
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().unwrap_or_default();
-            return Err(format!("API error ({}): {}", status, body));
+        loop {
+            // Calculate page size: min(remaining, 5000)
+            let page_size = match query.limit {
+                Some(limit) => {
+                    let remaining = limit.saturating_sub(accumulated_events.len() as u32);
+                    remaining.min(MAX_PAGE_SIZE)
+                }
+                None => MAX_PAGE_SIZE,
+            };
+
+            // If we've already collected enough, stop
+            if page_size == 0 {
+                break;
+            }
+
+            let mut url = format!(
+                "https://api.datadoghq.com/api/v2/events?filter[query]={}&filter[from]={}&filter[to]={}&page[limit]={}",
+                urlencoding::encode(&query.query),
+                urlencoding::encode(&query.from),
+                urlencoding::encode(&query.to),
+                page_size
+            );
+
+            // Add cursor if we have one
+            if let Some(ref c) = cursor {
+                url.push_str(&format!("&page[cursor]={}", urlencoding::encode(c)));
+            }
+
+            let response = self
+                .client
+                .get(&url)
+                .header("DD-API-KEY", &self.api_key)
+                .header("DD-APPLICATION-KEY", &self.app_key)
+                .header("Content-Type", "application/json")
+                .send()
+                .map_err(|e| format!("Request failed: {}", e))?;
+
+            if !response.status().is_success() {
+                let status = response.status();
+                let body = response.text().unwrap_or_default();
+                return Err(format!("API error ({}): {}", status, body));
+            }
+
+            let internal_response: EventsSearchResponseInternal = response
+                .json()
+                .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+            // Append events from this page
+            if let Some(events) = internal_response.data {
+                accumulated_events.extend(events);
+            }
+
+            // Check for next page cursor
+            let next_cursor = internal_response
+                .meta
+                .and_then(|m| m.page)
+                .and_then(|p| p.after);
+
+            match next_cursor {
+                Some(c) => cursor = Some(c),
+                None => break, // No more pages
+            }
+
+            // Check if we've collected enough
+            if let Some(limit) = query.limit
+                && accumulated_events.len() >= limit as usize {
+                    break;
+                }
         }
 
-        response
-            .json::<EventsSearchResponse>()
-            .map_err(|e| format!("Failed to parse response: {}", e))
+        Ok(EventsSearchResponse {
+            data: if accumulated_events.is_empty() {
+                None
+            } else {
+                Some(accumulated_events)
+            },
+        })
     }
 }
 

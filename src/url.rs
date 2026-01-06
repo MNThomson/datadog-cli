@@ -53,9 +53,17 @@ pub fn parse_datadog_url(url_str: &str) -> Result<DatadogResource, String> {
         .unwrap_or_else(|| "*".to_string());
 
     match path {
-        "/logs" => Ok(DatadogResource::Logs(LogsQuery::new(query, from, to, 100))),
+        "/logs" => Ok(DatadogResource::Logs(LogsQuery::new(
+            query,
+            from,
+            to,
+            Some(100),
+        ))),
         "/event/explorer" => Ok(DatadogResource::Events(EventsQuery::new(
-            query, from, to, 100,
+            query,
+            from,
+            to,
+            Some(100),
         ))),
         _ => Err(format!(
             "Unsupported Datadog resource: {}. Currently only /logs and /event/explorer are supported.",
@@ -96,7 +104,7 @@ mod tests {
                 assert_eq!(query.query, expected_query);
                 assert_eq!(query.from, expected_from);
                 assert_eq!(query.to, expected_to);
-                assert_eq!(query.limit, 100);
+                assert_eq!(query.limit, Some(100));
             }
             _ => panic!("Expected Logs resource"),
         }
@@ -154,7 +162,7 @@ mod tests {
                 assert_eq!(query.query, expected_query);
                 assert_eq!(query.from, expected_from);
                 assert_eq!(query.to, expected_to);
-                assert_eq!(query.limit, 100);
+                assert_eq!(query.limit, Some(100));
             }
             _ => panic!("Expected Events resource"),
         }
