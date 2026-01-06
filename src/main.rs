@@ -1,13 +1,16 @@
 use clap::{Parser, Subcommand};
-use datadog::{format_log_entry, DatadogClient, LogsQuery};
+use datadog::{format_log_entry, parse_datadog_url, DatadogClient, DatadogResource, LogsQuery};
 
 /// Datadog CLI - Query logs from your terminal
 #[derive(Parser)]
 #[command(name = "datadog")]
 #[command(version, about, long_about = None)]
 struct Cli {
+    /// Datadog URL to parse and execute (e.g., from browser)
+    url: Option<String>,
+
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
@@ -61,14 +64,33 @@ fn run_logs_query(query: &LogsQuery) {
 fn main() {
     let cli = Cli::parse();
 
+    // Check if a URL was provided
+    if let Some(url_str) = cli.url {
+        match parse_datadog_url(&url_str) {
+            Ok(DatadogResource::Logs(query)) => {
+                run_logs_query(&query);
+            }
+            Err(e) => {
+                eprintln!("Error parsing URL: {}", e);
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
+
+    // Otherwise, handle subcommands
     match cli.command {
-        Commands::Logs {
+        Some(Commands::Logs {
             query,
             from,
             to,
             limit,
-        } => {
+        }) => {
             run_logs_query(&LogsQuery::new(query, from, to, limit));
+        }
+        None => {
+            eprintln!("Error: No URL or command provided. Use --help for usage information.");
+            std::process::exit(1);
         }
     }
 }
