@@ -120,7 +120,11 @@ pub fn format_log_entry(entry: &LogEntry) -> String {
         .timestamp
         .as_ref()
         .and_then(|ts| DateTime::parse_from_rfc3339(ts).ok())
-        .map(|dt| dt.with_timezone(&Utc).format("%Y-%m-%d %H:%M:%S").to_string())
+        .map(|dt| {
+            dt.with_timezone(&Utc)
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string()
+        })
         .unwrap_or_else(|| "--------------------".to_string());
 
     let status_raw = entry
@@ -139,12 +143,7 @@ pub fn format_log_entry(entry: &LogEntry) -> String {
         _ => format!("{:5}", status_raw).normal(),
     };
 
-    let message = entry
-        .attributes
-        .message
-        .as_ref()
-        .map(|m| m.as_str())
-        .unwrap_or("");
+    let message = entry.attributes.message.as_deref().unwrap_or("");
 
     format!(
         "[{}] {} | {}",
@@ -153,4 +152,3 @@ pub fn format_log_entry(entry: &LogEntry) -> String {
         message
     )
 }
-

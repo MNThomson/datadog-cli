@@ -59,4 +59,3 @@ pub fn parse_datadog_url(url_str: &str) -> Result<DatadogResource, String> {
         )),
     }
 }
-

@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use datadog::{format_log_entry, parse_datadog_url, DatadogClient, DatadogResource, LogsQuery};
+use datadog::{DatadogClient, DatadogResource, LogsQuery, format_log_entry, parse_datadog_url};
 
 /// Datadog CLI - Query logs from your terminal
 #[derive(Parser)]
