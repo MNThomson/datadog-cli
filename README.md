@@ -6,7 +6,7 @@
 [<img alt="build status" src="https://img.shields.io/github/actions/workflow/status/MNThomson/datadog-cli/ci.yml?branch=master&style=for-the-badge&logo=githubactions&logoColor=white" height="20">](https://github.com/MNThomson/datadog-cli/actions?query=branch%3Amaster)
 
 
-CLI tool for querying Datadog logs (since the UI sucks at loading them).
+CLI tool for querying Datadog logs and events (since the UI sucks at loading them).
 
 ```console
 $ cargo install datadog-cli
@@ -18,7 +18,10 @@ $ datadog logs 'status:error'
 [2026-01-05 12:34:56] ERROR | Connection timeout to database
 [2026-01-05 12:34:12] ERROR | Failed to process request
 
-$ datadog logs 'service:myapp status:error "timeout"' --from now-30d --to now-2h --limit 5
+$ datadog events 'source:kubernetes status:error "failed"' --from now-30d --to now-2h --limit 5
+[2026-01-05 12:30:00] ERROR | Pod failed to scheduled
+
+$ datadog 'https://app.datadoghq.com/logs?query=status:error&from_ts=...'
 [2026-01-05 12:34:56] ERROR | Connection timeout to database
 ```
 
